@@ -1,6 +1,6 @@
 // Timer state lives in storage so it survives service-worker restarts.
-// timer: { mode: 'focus'|'break', focusMin, breakMin, endAt, remainingMs, running }
-const DEFAULT = { mode: 'focus', focusMin: 25, breakMin: 5, endAt: null, remainingMs: 25 * 60000, running: false };
+// timer: { mode: 'focus'|'break', focusSec, breakSec, endAt, remainingMs, running }
+const DEFAULT = { mode: 'focus', focusSec: 25 * 60, breakSec: 5 * 60, endAt: null, remainingMs: 25 * 60000, running: false };
 
 async function getTimer() {
   const { timer } = await chrome.storage.local.get('timer');
@@ -9,7 +9,7 @@ async function getTimer() {
 const setTimer = (timer) => chrome.storage.local.set({ timer });
 
 const remaining = (t) => (t.running ? Math.max(0, t.endAt - Date.now()) : t.remainingMs);
-const fullMs = (t) => (t.mode === 'focus' ? t.focusMin : t.breakMin) * 60000;
+const fullMs = (t) => (t.mode === 'focus' ? t.focusSec : t.breakSec) * 1000;
 
 async function updateBadge(t) {
   t = t || (await getTimer());
@@ -18,8 +18,9 @@ async function updateBadge(t) {
     await chrome.action.setBadgeText({ text: '' });
     return;
   }
-  // Badge fits ~4 chars: minutes when >= 1 min, seconds in the last minute.
-  const text = ms >= 60000 ? String(Math.ceil(ms / 60000)) : `${Math.ceil(ms / 1000)}s`;
+  // Badge fits ~4 chars: hours, then minutes, then seconds in the last minute.
+  const text = ms >= 3600000 ? `${Math.floor(ms / 3600000)}h${String(Math.floor(ms / 60000) % 60).padStart(2, '0')}`
+    : ms >= 60000 ? String(Math.ceil(ms / 60000)) : `${Math.ceil(ms / 1000)}s`;
   await chrome.action.setBadgeText({ text });
   await chrome.action.setBadgeBackgroundColor({
     color: !t.running ? '#888888' : t.mode === 'focus' ? '#e5484d' : '#30a46c',

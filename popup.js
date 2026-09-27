@@ -19,14 +19,23 @@ function renderTimer() {
   if (!timer) return;
   const ms = timer.running ? Math.max(0, timer.endAt - Date.now()) : timer.remainingMs;
   const s = Math.ceil(ms / 1000);
-  $('tDisplay').textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
-  const full = (timer.mode === 'focus' ? timer.focusMin : timer.breakMin) * 60000;
+  const h = Math.floor(s / 3600);
+  const mmss = `${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+  $('tDisplay').textContent = h ? `${h}:${mmss}` : mmss;
+  $('tDisplay').style.fontSize = h ? '32px' : '';
+  const full = (timer.mode === 'focus' ? timer.focusSec : timer.breakSec) * 1000;
   $('bar').style.strokeDashoffset = CIRC * (1 - ms / full);
   $('tStart').textContent = timer.running ? '일시정지' : ms < full ? '계속' : '시작';
   document.body.classList.toggle('rest', timer.mode === 'break');
   document.querySelectorAll('.modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === timer.mode));
-  if (document.activeElement !== $('focusMin')) $('focusMin').value = timer.focusMin;
-  if (document.activeElement !== $('breakMin')) $('breakMin').value = timer.breakMin;
+  document.querySelectorAll('.settings .row').forEach((row) => {
+    if (row.contains(document.activeElement)) return;
+    const total = timer[row.dataset.key];
+    row.querySelectorAll('input').forEach((inp) => {
+      const u = +inp.dataset.u;
+      inp.value = u === 3600 ? Math.floor(total / 3600) : Math.floor(total / u) % 60;
+    });
+  });
 }
 
 $('tStart').onclick = async () => { timer = await send(timer.running ? 'pause' : 'start'); renderTimer(); };
@@ -34,13 +43,19 @@ $('tReset').onclick = async () => { timer = await send('reset'); renderTimer(); 
 document.querySelectorAll('.modes button').forEach((b) => {
   b.onclick = async () => { timer = await send('config', { patch: { mode: b.dataset.mode } }); renderTimer(); };
 });
-for (const key of ['focusMin', 'breakMin']) {
-  $(key).onchange = async () => {
-    const v = Math.min(180, Math.max(1, parseInt($(key).value, 10) || 1));
-    timer = await send('config', { patch: { [key]: v } });
-    renderTimer();
-  };
-}
+document.querySelectorAll('.settings .row').forEach((row) => {
+  row.querySelectorAll('input').forEach((inp) => {
+    inp.onchange = async () => {
+      let total = 0;
+      row.querySelectorAll('input').forEach((i) => {
+        const max = +i.max;
+        total += Math.min(max, Math.max(0, parseInt(i.value, 10) || 0)) * +i.dataset.u;
+      });
+      timer = await send('config', { patch: { [row.dataset.key]: Math.max(1, total) } });
+      renderTimer();
+    };
+  });
+});
 chrome.storage.onChanged.addListener((c) => { if (c.timer) { timer = c.timer.newValue; renderTimer(); } });
 
 // ---------- stopwatch (timestamps in storage, so it keeps counting while the popup is closed) ----------

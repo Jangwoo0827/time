@@ -28,8 +28,18 @@
       <button id="tReset">리셋</button>
     </div>
     <div class="settings">
-      <label>집중 <input id="focusMin" type="number" min="1" max="180" /> 분</label>
-      <label>휴식 <input id="breakMin" type="number" min="1" max="180" /> 분</label>
+      <div class="row" data-key="focusSec">
+        <span>집중</span>
+        <input data-u="3600" type="number" min="0" max="23" /> 시
+        <input data-u="60" type="number" min="0" max="59" /> 분
+        <input data-u="1" type="number" min="0" max="59" /> 초
+      </div>
+      <div class="row" data-key="breakSec">
+        <span>휴식</span>
+        <input data-u="3600" type="number" min="0" max="23" /> 시
+        <input data-u="60" type="number" min="0" max="59" /> 분
+        <input data-u="1" type="number" min="0" max="59" /> 초
+      </div>
     </div>
   </section>
 

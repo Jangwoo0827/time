@@ -38,8 +38,9 @@ body.rest .bar { stroke: var(--rest); }
 .big.sw { font-size: 36px; margin: 28px 0 18px; }
 .controls { display: flex; gap: 8px; justify-content: center; }
 
-.settings { display: flex; justify-content: center; gap: 14px; margin-top: 14px; color: var(--muted); font-size: 13px; }
-.settings input { width: 46px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 6px;
+.settings { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; color: var(--muted); font-size: 13px; }
+.settings .row span { margin-right: 6px; color: var(--fg); }
+.settings input { width: 42px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--bg); color: var(--fg); text-align: center; font: inherit; }
 
 #laps { max-height: 150px; overflow-y: auto; margin: 14px 0 0; padding: 0 4px; list-style: none;
