@@ -50,53 +50,49 @@ async function schedule(t) {
   if (t.endAt - Date.now() < 70000) fastTick();
 }
 
+// 'end' alarm, tick alarm and fastTick can all fire at the end; only finish once.
+let finishing = false;
 async function finish() {
-  const t = await getTimer();
-  if (!t.running) return;
-  clearTimeout(fastTimer);
-  await chrome.alarms.clearAll();
-  const wasFocus = t.mode === 'focus';
-  // Flip to the other mode, ready to start.
-  const next = { ...t, mode: wasFocus ? 'break' : 'focus', running: false, endAt: null };
-  next.remainingMs = fullMs(next);
-  await setTimer(next);
-  await chrome.storage.local.set({ ringing: true });
-  ring();
-  await openAlarmWindow();
-}
-
-// ---------- pop-up alarm window, centered on the current browser window ----------
-async function openAlarmWindow() {
-  await closeAlarmWindow();
-  const W = 420, H = 380;
-  let left, top;
+  if (finishing) return;
+  finishing = true;
   try {
-    const cur = await chrome.windows.getLastFocused();
-    left = Math.round(cur.left + (cur.width - W) / 2);
-    top = Math.round(cur.top + (cur.height - H) / 2);
-  } catch {}
-  const win = await chrome.windows.create({
-    url: 'alarm.html', type: 'popup', focused: true, width: W, height: H, left, top,
-  });
-  await chrome.storage.local.set({ alarmWin: win.id });
-  // Flashes the taskbar button too, in case another app is in front.
-  chrome.windows.update(win.id, { drawAttention: true, focused: true });
+    const t = await getTimer();
+    if (!t.running) return;
+    clearTimeout(fastTimer);
+    await chrome.alarms.clearAll();
+    const wasFocus = t.mode === 'focus';
+    // Flip to the other mode, ready to start.
+    const next = { ...t, mode: wasFocus ? 'break' : 'focus', running: false, endAt: null };
+    next.remainingMs = fullMs(next);
+    await setTimer(next);
+    const dur = fmtDur(wasFocus ? t.breakSec : t.focusSec);
+    // Fixed id: a repeat call replaces the notification instead of stacking a second one.
+    chrome.notifications.create('done', {
+      type: 'basic',
+      iconUrl: 'icons/128.png',
+      title: wasFocus ? '집중 시간 종료' : '휴식 시간 종료',
+      message: wasFocus
+        ? `집중 시간이 끝났습니다! ${dur} 동안 휴식하세요.`
+        : `휴식이 끝났습니다! 다시 ${dur} 집중해볼까요?`,
+      priority: 2,
+      requireInteraction: true,
+      silent: true,
+    });
+    await chrome.storage.local.set({ ringing: true });
+    ring();
+  } finally {
+    finishing = false;
+  }
 }
 
-async function closeAlarmWindow() {
-  const { alarmWin } = await chrome.storage.local.get('alarmWin');
-  if (alarmWin == null) return;
-  await chrome.storage.local.set({ alarmWin: null });
-  try { await chrome.windows.remove(alarmWin); } catch {}
+function fmtDur(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+  return [h && `${h}시간`, m && `${m}분`, s && `${s}초`].filter(Boolean).join(' ');
 }
 
-// Closing the alarm window with X also silences the icon.
-chrome.windows.onRemoved.addListener(async (id) => {
-  const { alarmWin } = await chrome.storage.local.get('alarmWin');
-  if (id !== alarmWin) return;
-  await chrome.storage.local.set({ alarmWin: null });
-  await stopRing();
-});
+// Clicking or closing the notification silences the icon.
+chrome.notifications.onClicked.addListener(() => stopRing());
+chrome.notifications.onClosed.addListener((_id, byUser) => { if (byUser) stopRing(); });
 
 // ---------- ringing alarm-clock icon ----------
 // Draws an alarm clock tilted by `angle` degrees; bells/body in red, flashing
@@ -168,7 +164,7 @@ async function stopRing() {
   clearTimeout(ringStop);
   ringTimer = null;
   await chrome.storage.local.set({ ringing: false });
-  closeAlarmWindow();
+  chrome.notifications.clear('done');
   await chrome.action.setIcon({ path: { 16: 'icons/16.png', 32: 'icons/32.png' } });
   await updateBadge();
 }

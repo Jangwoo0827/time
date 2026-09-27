@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Focus Timer",
   "version": "1.0.0",
-  "description": "타이머 · 스탑워치 · 시계 — 아이콘 배지에 남은 시간 표시, 종료 시 자명종처럼 아이콘이 울림",
-  "permissions": ["alarms", "storage"],
+  "description": "타이머 · 스탑워치 · 시계 — 아이콘 배지에 남은 시간 표시, 종료 시 알림 + 아이콘이 울림",
+  "permissions": ["alarms", "notifications", "storage"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",
