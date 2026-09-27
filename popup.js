@@ -88,6 +88,7 @@ function renderClock() {
 (async () => {
   const st = await chrome.storage.local.get(['timer', 'sw', 'tab']);
   if (st.sw) sw = st.sw;
+  send('dismiss'); // opening the popup silences a ringing alarm
   timer = st.timer || (await send('reset'));
   showTab(st.tab || 'timer');
   renderTimer(); renderSw(); renderLaps(); renderClock();
