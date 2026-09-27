@@ -62,7 +62,41 @@ async function finish() {
   await setTimer(next);
   await chrome.storage.local.set({ ringing: true });
   ring();
+  await openAlarmWindow();
 }
+
+// ---------- pop-up alarm window, centered on the current browser window ----------
+async function openAlarmWindow() {
+  await closeAlarmWindow();
+  const W = 420, H = 380;
+  let left, top;
+  try {
+    const cur = await chrome.windows.getLastFocused();
+    left = Math.round(cur.left + (cur.width - W) / 2);
+    top = Math.round(cur.top + (cur.height - H) / 2);
+  } catch {}
+  const win = await chrome.windows.create({
+    url: 'alarm.html', type: 'popup', focused: true, width: W, height: H, left, top,
+  });
+  await chrome.storage.local.set({ alarmWin: win.id });
+  // Flashes the taskbar button too, in case another app is in front.
+  chrome.windows.update(win.id, { drawAttention: true, focused: true });
+}
+
+async function closeAlarmWindow() {
+  const { alarmWin } = await chrome.storage.local.get('alarmWin');
+  if (alarmWin == null) return;
+  await chrome.storage.local.set({ alarmWin: null });
+  try { await chrome.windows.remove(alarmWin); } catch {}
+}
+
+// Closing the alarm window with X also silences the icon.
+chrome.windows.onRemoved.addListener(async (id) => {
+  const { alarmWin } = await chrome.storage.local.get('alarmWin');
+  if (id !== alarmWin) return;
+  await chrome.storage.local.set({ alarmWin: null });
+  await stopRing();
+});
 
 // ---------- ringing alarm-clock icon ----------
 // Draws an alarm clock tilted by `angle` degrees; bells/body in red, flashing
@@ -134,6 +168,7 @@ async function stopRing() {
   clearTimeout(ringStop);
   ringTimer = null;
   await chrome.storage.local.set({ ringing: false });
+  closeAlarmWindow();
   await chrome.action.setIcon({ path: { 16: 'icons/16.png', 32: 'icons/32.png' } });
   await updateBadge();
 }
@@ -151,7 +186,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       if (ringTimer || (await chrome.storage.local.get('ringing')).ringing) await stopRing();
       return reply(await getTimer());
     }
-    if (ringTimer) await stopRing();
+    if (ringTimer || (await chrome.storage.local.get('ringing')).ringing) await stopRing();
     let t = await getTimer();
     switch (msg.cmd) {
       case 'start':
