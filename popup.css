@@ -18,6 +18,8 @@ body.rest button.primary { background: var(--rest); }
 .tabs button { flex: 1; background: none; border-radius: 0; padding: 8px 10px; color: var(--muted);
   border-bottom: 2px solid transparent; }
 .tabs button.on { color: var(--fg); border-bottom-color: var(--fg); }
+.tabs button.web { flex: 0; padding: 8px 6px; font-size: 16px; }
+.tabs button.web:hover { color: var(--fg); }
 
 .pane { display: none; text-align: center; }
 .pane.on { display: block; }

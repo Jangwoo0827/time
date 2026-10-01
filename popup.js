@@ -8,7 +8,10 @@ function showTab(name) {
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === name));
   chrome.storage.local.set({ tab: name });
 }
-document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+document.querySelectorAll('.tabs button[data-tab]').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+
+const WEB_URL = 'https://jangwoo0827.github.io/time/web/';
+$('openWeb').onclick = () => { chrome.tabs.create({ url: WEB_URL }); window.close(); };
 
 // ---------- timer (state owned by background.js) ----------
 let timer = null;
