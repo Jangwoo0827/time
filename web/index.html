@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Focus Timer</title>
+<link rel="icon" href="../icons/32.png" />
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c1c1f; --muted: #8b8d98; --line: #e4e4e9; --btn: #f1f1f4;
+    --accent: #e5484d; --rest: #30a46c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #111113; --fg: #edeef0; --line: #2a2c31; --btn: #222428; }
+  }
+  :root[data-theme="dark"] { --bg: #111113; --fg: #edeef0; --line: #2a2c31; --btn: #222428; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
+    font: 16px/1.4 system-ui, "Segoe UI", "Malgun Gothic", sans-serif; overflow: hidden; }
+  body.rest { --accent: var(--rest); }
+  button { font: inherit; border: 0; border-radius: 12px; padding: 12px 26px; background: var(--btn);
+    color: var(--fg); cursor: pointer; }
+  button:hover { filter: brightness(0.95); }
+  button.primary { background: var(--accent); color: #fff; min-width: 140px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px;
+    transition: opacity .4s; }
+  .tabs { display: flex; gap: 4px; background: var(--btn); padding: 4px; border-radius: 12px; }
+  .tabs button { background: none; padding: 8px 18px; color: var(--muted); border-radius: 9px; }
+  .tabs button.on { background: var(--bg); color: var(--fg); }
+  .tools { display: flex; gap: 6px; }
+  .tools button { padding: 8px 12px; }
+  body.idle header, body.idle .controls, body.idle .settings { opacity: 0; }
+  body.idle { cursor: none; }
+
+  main { flex: 1; display: grid; place-items: center; min-height: 0; }
+  .pane { display: none; flex-direction: column; align-items: center; gap: 2.2vh; width: 100%; }
+  .pane.on { display: flex; }
+
+  .modes { display: inline-flex; background: var(--btn); padding: 4px; border-radius: 12px; }
+  .modes button { padding: 6px 22px; background: none; color: var(--muted); border-radius: 9px; }
+  .modes button.on { background: var(--bg); color: var(--fg); }
+
+  .ring { position: relative; width: min(56vh, 86vw); aspect-ratio: 1; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 4; }
+  .track { stroke: var(--line); }
+  .bar { stroke: var(--accent); stroke-linecap: round; }
+  .ring .big { position: absolute; inset: 0; display: grid; place-items: center; font-size: min(12vh, 17vw); }
+  .ring .big.long { font-size: min(9vh, 13vw); }
+  body.done .ring { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.03); opacity: .55; } }
+
+  .big { font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+  .sw { font-size: min(22vh, 15vw); }
+  #clockTime { font-size: min(30vh, 20vw); }
+  .date { color: var(--muted); font-size: min(4vh, 5vw); }
+
+  .controls { display: flex; gap: 10px; transition: opacity .4s; }
+  .settings { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px; color: var(--muted);
+    transition: opacity .4s; }
+  .settings span { color: var(--fg); margin-right: 6px; }
+  .settings input { width: 52px; padding: 5px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--fg); text-align: center; font: inherit; }
+  #laps { list-style: none; margin: 0; padding: 0; width: min(520px, 90vw); max-height: 24vh; overflow-y: auto;
+    font-variant-numeric: tabular-nums; }
+  #laps li { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  #laps li span:first-child { color: var(--muted); }
+  .hint { position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; color: var(--muted);
+    font-size: 13px; transition: opacity .4s; }
+  body.idle .hint { opacity: 0; }
+
+  @media (max-height: 640px) { .hint { display: none; } }
+  @media (max-width: 520px) {
+    header { padding: 10px 16px; }
+    .tabs button { padding: 8px 12px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <nav class="tabs">
+    <button data-tab="timer" class="on">타이머</button>
+    <button data-tab="stopwatch">스탑워치</button>
+    <button data-tab="clock">시계</button>
+  </nav>
+  <div class="tools">
+    <button id="theme" title="테마">◐</button>
+    <button id="fs" title="전체 화면 (F)">⛶</button>
+  </div>
+</header>
+
+<main>
+  <section id="timer" class="pane on">
+    <div class="modes">
+      <button data-mode="focus">집중</button>
+      <button data-mode="break">휴식</button>
+    </div>
+    <div class="ring">
+      <svg viewBox="0 0 120 120">
+        <circle class="track" cx="60" cy="60" r="56" />
+        <circle class="bar" id="bar" cx="60" cy="60" r="56" />
+      </svg>
+      <div class="big" id="tDisplay">25:00</div>
+    </div>
+    <div class="controls">
+      <button id="tStart" class="primary">시작</button>
+      <button id="tReset">리셋</button>
+    </div>
+    <div class="settings">
+      <div class="row" data-key="focusSec"><span>집중</span>
+        <input data-u="3600" type="number" min="0" max="23" /> 시
+        <input data-u="60" type="number" min="0" max="59" /> 분
+        <input data-u="1" type="number" min="0" max="59" /> 초</div>
+      <div class="row" data-key="breakSec"><span>휴식</span>
+        <input data-u="3600" type="number" min="0" max="23" /> 시
+        <input data-u="60" type="number" min="0" max="59" /> 분
+        <input data-u="1" type="number" min="0" max="59" /> 초</div>
+    </div>
+  </section>
+
+  <section id="stopwatch" class="pane">
+    <div class="big sw" id="swDisplay">00:00.00</div>
+    <div class="controls">
+      <button id="swStart" class="primary">시작</button>
+      <button id="swLap">랩</button>
+      <button id="swReset">리셋</button>
+    </div>
+    <ol id="laps"></ol>
+  </section>
+
+  <section id="clock" class="pane">
+    <div class="big" id="clockTime">--:--:--</div>
+    <div class="date" id="clockDate"></div>
+  </section>
+</main>
+<div class="hint">Space 시작/일시정지 · R 리셋 · F 전체 화면 · 1/2/3 탭 전환</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, '0');
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+// ---------- tabs / theme / fullscreen ----------
+let tab = load('tab', 'timer');
+function showTab(name) {
+  tab = name; save('tab', name);
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === name));
+}
+document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+
+const theme = load('theme', null);
+if (theme) document.documentElement.dataset.theme = theme;
+$('theme').onclick = () => {
+  const dark = getComputedStyle(document.body).backgroundColor === 'rgb(17, 17, 19)';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  save('theme', document.documentElement.dataset.theme);
+};
+const toggleFs = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+$('fs').onclick = toggleFs;
+
+// Hide controls after 3 s without mouse movement, for a clean big-screen view.
+let idleT;
+const wake = () => { document.body.classList.remove('idle'); clearTimeout(idleT);
+  idleT = setTimeout(() => document.body.classList.add('idle'), 3000); };
+['mousemove', 'keydown', 'touchstart'].forEach((e) => addEventListener(e, wake));
+wake();
+
+// Keep the screen on while the page is visible.
+let lock = null;
+async function keepAwake() { try { lock = await navigator.wakeLock.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+keepAwake();
+
+// ---------- timer ----------
+let t = { mode: 'focus', focusSec: 1500, breakSec: 300, endAt: null, remainingMs: 1500000, running: false,
+  ...load('timer', {}) };
+const fullMs = () => (t.mode === 'focus' ? t.focusSec : t.breakSec) * 1000;
+const remaining = () => (t.running ? Math.max(0, t.endAt - Date.now()) : t.remainingMs);
+const saveT = () => save('timer', t);
+const CIRC = 2 * Math.PI * 56;
+$('bar').style.strokeDasharray = CIRC;
+
+function fmtTimer(ms) {
+  const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600);
+  const mmss = `${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+  return h ? `${h}:${mmss}` : mmss;
+}
+const fmtDur = (sec) => [Math.floor(sec / 3600) && `${Math.floor(sec / 3600)}시간`,
+  Math.floor(sec / 60) % 60 && `${Math.floor(sec / 60) % 60}분`, sec % 60 && `${sec % 60}초`].filter(Boolean).join(' ');
+
+function renderTimer() {
+  const ms = remaining();
+  const text = fmtTimer(ms);
+  $('tDisplay').textContent = text;
+  $('tDisplay').classList.toggle('long', text.length > 5);
+  $('bar').style.strokeDashoffset = CIRC * (1 - ms / fullMs());
+  $('tStart').textContent = t.running ? '일시정지' : ms < fullMs() ? '계속' : '시작';
+  document.body.classList.toggle('rest', t.mode === 'break');
+  document.querySelectorAll('.modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === t.mode));
+  document.querySelectorAll('.settings .row').forEach((row) => {
+    if (row.contains(document.activeElement)) return;
+    const total = t[row.dataset.key];
+    row.querySelectorAll('input').forEach((i) => {
+      const u = +i.dataset.u;
+      i.value = u === 3600 ? Math.floor(total / 3600) : Math.floor(total / u) % 60;
+    });
+  });
+  document.title = t.running ? `${text} · ${t.mode === 'focus' ? '집중' : '휴식'}` : 'Focus Timer';
+}
+
+function startPause() {
+  document.body.classList.remove('done');
+  if (t.running) { t.remainingMs = remaining(); t.running = false; t.endAt = null; }
+  else if (t.remainingMs > 0) { t.running = true; t.endAt = Date.now() + t.remainingMs; askNotify(); }
+  saveT(); renderTimer();
+}
+function resetTimer() {
+  document.body.classList.remove('done');
+  t.running = false; t.endAt = null; t.remainingMs = fullMs(); saveT(); renderTimer();
+}
+function config(patch) {
+  document.body.classList.remove('done');
+  Object.assign(t, patch, { running: false, endAt: null }); t.remainingMs = fullMs(); saveT(); renderTimer();
+}
+
+function finish() {
+  const wasFocus = t.mode === 'focus';
+  const dur = fmtDur(wasFocus ? t.breakSec : t.focusSec);
+  config({ mode: wasFocus ? 'break' : 'focus' });
+  document.body.classList.add('done');
+  document.title = wasFocus ? '⏰ 집중 시간 종료' : '⏰ 휴식 시간 종료';
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(wasFocus ? '집중 시간 종료' : '휴식 시간 종료', {
+      body: wasFocus ? `집중 시간이 끝났습니다! ${dur} 동안 휴식하세요.` : `휴식이 끝났습니다! 다시 ${dur} 집중해볼까요?`,
+      icon: '../icons/128.png', silent: true, tag: 'done', requireInteraction: true,
+    });
+  }
+}
+function askNotify() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+
+$('tStart').onclick = startPause;
+$('tReset').onclick = resetTimer;
+document.querySelectorAll('.modes button').forEach((b) => (b.onclick = () => config({ mode: b.dataset.mode })));
+document.querySelectorAll('.settings .row').forEach((row) => {
+  row.querySelectorAll('input').forEach((inp) => (inp.onchange = () => {
+    let total = 0;
+    row.querySelectorAll('input').forEach((i) =>
+      (total += Math.min(+i.max, Math.max(0, parseInt(i.value, 10) || 0)) * +i.dataset.u));
+    config({ [row.dataset.key]: Math.max(1, total) });
+  }));
+});
+
+// ---------- stopwatch ----------
+let sw = load('sw', { running: false, startAt: 0, elapsed: 0, laps: [] });
+const swNow = () => (sw.running ? sw.elapsed + Date.now() - sw.startAt : sw.elapsed);
+const fmtSw = (ms) => {
+  const cs = Math.floor(ms / 10), h = Math.floor(cs / 360000);
+  const body = `${pad(Math.floor(cs / 6000) % 60)}:${pad(Math.floor(cs / 100) % 60)}.${pad(cs % 100)}`;
+  return h ? `${h}:${body}` : body;
+};
+function renderSw() {
+  $('swDisplay').textContent = fmtSw(swNow());
+  $('swStart').textContent = sw.running ? '일시정지' : sw.elapsed ? '계속' : '시작';
+}
+function renderLaps() {
+  $('laps').innerHTML = '';
+  sw.laps.forEach((v, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>랩 ${i + 1}</span><span>+${fmtSw(v - (sw.laps[i - 1] || 0))}</span><span>${fmtSw(v)}</span>`;
+    $('laps').prepend(li);
+  });
+}
+function swToggle() {
+  if (sw.running) { sw.elapsed = swNow(); sw.running = false; } else { sw.startAt = Date.now(); sw.running = true; }
+  save('sw', sw); renderSw();
+}
+function swReset() { sw = { running: false, startAt: 0, elapsed: 0, laps: [] }; save('sw', sw); renderSw(); renderLaps(); }
+$('swStart').onclick = swToggle;
+$('swLap').onclick = () => { if (sw.running) { sw.laps.push(swNow()); save('sw', sw); renderLaps(); } };
+$('swReset').onclick = swReset;
+
+// ---------- clock ----------
+function renderClock() {
+  const d = new Date();
+  $('clockTime').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  $('clockDate').textContent = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+}
+
+// ---------- keyboard ----------
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); tab === 'stopwatch' ? swToggle() : startPause(); }
+  else if (e.key === 'r' || e.key === 'R') tab === 'stopwatch' ? swReset() : resetTimer();
+  else if (e.key === 'f' || e.key === 'F') toggleFs();
+  else if (['1', '2', '3'].includes(e.key)) showTab(['timer', 'stopwatch', 'clock'][e.key - 1]);
+});
+
+// ---------- loop ----------
+showTab(tab);
+renderLaps();
+function loop() {
+  if (t.running && remaining() === 0) finish();
+  renderTimer();
+  if (sw.running || tab === 'stopwatch') renderSw();
+  renderClock();
+  requestAnimationFrame(loop);
+}
+loop();
+// rAF pauses in background tabs; keep checking so the notification still fires on time.
+setInterval(() => { if (t.running && remaining() === 0) finish(); else if (t.running) renderTimer(); }, 1000);
+</script>
+</body>
+</html>
